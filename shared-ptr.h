@@ -20,16 +20,20 @@ protected:
   virtual ~control_block() = default;
 
 private:
+  // NOTE: weak_cnt   = |strong| + |weak|
+  //       strong_cnt = |strong|
   size_t strong_cnt{0};
   size_t weak_cnt{0};
 };
-} // namespace sharedptr_details
 
 template <typename T, typename D = std::default_delete<T>>
-class ptr_block : public sharedptr_details::control_block, D {
+class ptr_block : public sharedptr_details::control_block, private D {
 public:
-  explicit ptr_block(T* ptr_, D&& deleter = D())
-      : D(std::forward<D>(deleter)), ptr(ptr_) {
+  template <typename DeducedD = D>
+  explicit ptr_block(T* ptr_, DeducedD&& deleter = D())
+      : D(std::forward<DeducedD>(deleter)), ptr(ptr_) {
+    // NOTE: we need DeducedD because if we just place D&& - it will mean not a
+    // forwarding reference, but an r-value reference to D
     inc_strong();
   }
 
@@ -68,6 +72,7 @@ protected:
 private:
   std::aligned_storage_t<sizeof(T), alignof(T)> obj;
 };
+} // namespace sharedptr_details
 
 template <typename T>
 class weak_ptr;
@@ -92,7 +97,8 @@ public:
             typename = std::enable_if_t<std::is_convertible_v<Y, T>>>
   explicit shared_ptr(Y* ptr_, D&& deleter = D()) {
     try {
-      auto* p_block = new ptr_block<Y, D>(ptr_, std::forward<D>(deleter));
+      auto* p_block = new sharedptr_details::ptr_block<Y, D>(
+          ptr_, std::forward<D>(deleter));
       // get the Y* before its type gets erased
       ptr = p_block->get();
       cb = p_block;
@@ -274,7 +280,8 @@ private:
 
 template <typename T, typename... Args>
 shared_ptr<T> make_shared(Args&&... args) {
-  auto* o_block = new obj_block<T>(std::forward<Args>(args)...);
+  auto* o_block =
+      new sharedptr_details::obj_block<T>(std::forward<Args>(args)...);
   shared_ptr<T> result(o_block, o_block->get());
   return result;
 }
