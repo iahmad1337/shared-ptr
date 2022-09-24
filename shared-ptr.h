@@ -6,7 +6,8 @@
 #include <type_traits>
 #include <utility>
 
-namespace sharedptr_details {
+namespace detail {
+
 class control_block {
 public:
   size_t get_strong() const;
@@ -27,7 +28,7 @@ private:
 };
 
 template <typename T, typename D = std::default_delete<T>>
-class ptr_block : public sharedptr_details::control_block, private D {
+class ptr_block : public detail::control_block, private D {
 public:
   template <typename DeducedD = D>
   explicit ptr_block(T* ptr_, DeducedD&& deleter = D())
@@ -53,7 +54,7 @@ private:
 
 // no custom deleter since we manage the allocation/deallocation by ourselves
 template <typename T>
-class obj_block : public sharedptr_details::control_block {
+class obj_block : public detail::control_block {
 public:
   template <typename... Args>
   explicit obj_block(Args&&... args) {
@@ -72,7 +73,7 @@ protected:
 private:
   std::aligned_storage_t<sizeof(T), alignof(T)> obj;
 };
-} // namespace sharedptr_details
+} // namespace detail
 
 template <typename T>
 class weak_ptr;
@@ -97,8 +98,8 @@ public:
             typename = std::enable_if_t<std::is_convertible_v<Y, T>>>
   explicit shared_ptr(Y* ptr_, D&& deleter = D()) {
     try {
-      auto* p_block = new sharedptr_details::ptr_block<Y, D>(
-          ptr_, std::forward<D>(deleter));
+      auto* p_block =
+          new detail::ptr_block<Y, D>(ptr_, std::forward<D>(deleter));
       // get the Y* before its type gets erased
       ptr = p_block->get();
       cb = p_block;
@@ -131,6 +132,8 @@ public:
   }
 
   shared_ptr& operator=(shared_ptr&& other) noexcept {
+    // NOTE: I decided to do a swap trick since it handles self-assignment
+    // properly and is easier to read
     shared_ptr<T> tmp(std::move(other));
     swap(tmp);
     return *this;
@@ -190,8 +193,7 @@ public:
   }
 
 private:
-  shared_ptr(sharedptr_details::control_block* cb_, T* ptr_)
-      : cb(cb_), ptr(ptr_) {
+  shared_ptr(detail::control_block* cb_, T* ptr_) : cb(cb_), ptr(ptr_) {
     safe_inc();
   }
 
@@ -207,7 +209,7 @@ private:
   }
 
 private:
-  sharedptr_details::control_block* cb{nullptr};
+  detail::control_block* cb{nullptr};
   T* ptr{nullptr};
 };
 
@@ -224,14 +226,12 @@ public:
     safe_inc();
   }
 
-  weak_ptr(weak_ptr<T>&& other) noexcept : cb(other.cb), ptr(other.ptr) {
-    other.cb = nullptr;
-    other.ptr = nullptr;
+  weak_ptr(weak_ptr<T>&& other) noexcept : weak_ptr{} {
+    swap(other);
   }
 
   weak_ptr& operator=(weak_ptr<T>&& other) noexcept {
-    weak_ptr<T> tmp(std::move(other));
-    swap(tmp);
+    swap(other);
     return *this;
   }
 
@@ -274,14 +274,13 @@ private:
   }
 
 private:
-  sharedptr_details::control_block* cb{nullptr};
+  detail::control_block* cb{nullptr};
   T* ptr{nullptr};
 };
 
 template <typename T, typename... Args>
 shared_ptr<T> make_shared(Args&&... args) {
-  auto* o_block =
-      new sharedptr_details::obj_block<T>(std::forward<Args>(args)...);
+  auto* o_block = new detail::obj_block<T>(std::forward<Args>(args)...);
   shared_ptr<T> result(o_block, o_block->get());
   return result;
 }

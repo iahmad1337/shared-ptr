@@ -1,6 +1,6 @@
 #include "shared-ptr.h"
 
-namespace sharedptr_details {
+namespace detail {
 size_t control_block::get_strong() const {
   return strong_cnt;
 }
@@ -28,4 +28,4 @@ void control_block::dec_weak() {
     delete this; // call to the virtual destructor
   }
 }
-} // namespace sharedptr_details
+} // namespace detail
