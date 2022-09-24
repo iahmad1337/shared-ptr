@@ -113,8 +113,8 @@ public:
     safe_inc();
   }
 
-  shared_ptr(shared_ptr&& other) noexcept : cb(other.cb), ptr(other.ptr) {
-    other.nullify();
+  shared_ptr(shared_ptr&& other) noexcept : shared_ptr{} {
+    swap(other);
   }
 
   template <typename Y>
@@ -133,7 +133,7 @@ public:
 
   shared_ptr& operator=(shared_ptr&& other) noexcept {
     // NOTE: I decided to do a swap trick since it handles self-assignment
-    // properly and is easier to read
+    // properly and is easier to read than `if (this == &other) ...`
     shared_ptr<T> tmp(std::move(other));
     swap(tmp);
     return *this;
@@ -231,7 +231,8 @@ public:
   }
 
   weak_ptr& operator=(weak_ptr<T>&& other) noexcept {
-    swap(other);
+    weak_ptr<T> tmp(std::move(other));
+    swap(tmp);
     return *this;
   }
 
