@@ -5,7 +5,7 @@ set(CMAKE_CXX_STANDARD 20)
 
 find_package(GTest REQUIRED)
 
-add_executable(tests tests.cpp tests-extra/test-object.cpp)
+add_executable(tests tests.cpp shared-ptr.cpp tests-extra/test-object.cpp)
 
 if (NOT MSVC)
     target_compile_options(tests PRIVATE -Wall -Wextra -Wshadow=compatible-local -Wno-sign-compare -pedantic)
