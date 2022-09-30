@@ -30,11 +30,8 @@ private:
 template <typename T, typename D = std::default_delete<T>>
 class ptr_block : public detail::control_block, private D {
 public:
-  template <typename DeducedD = D>
-  explicit ptr_block(T* ptr_, DeducedD&& deleter = D())
-      : D(std::forward<DeducedD>(deleter)), ptr(ptr_) {
-    // NOTE: we need DeducedD because if we just place D&& - it will mean not a
-    // forwarding reference, but an r-value reference to D
+  explicit ptr_block(T* ptr_, D&& deleter = D())
+      : D(std::move(deleter)), ptr(ptr_) {
     inc_strong();
   }
 
@@ -95,11 +92,10 @@ public:
   shared_ptr(std::nullptr_t) noexcept {}
 
   template <typename Y, typename D = std::default_delete<Y>,
-            typename = std::enable_if_t<std::is_convertible_v<Y, T>>>
-  explicit shared_ptr(Y* ptr_, D&& deleter = D()) {
+            typename = std::enable_if_t<std::is_convertible_v<Y*, T*>>>
+  explicit shared_ptr(Y* ptr_, D deleter = D()) {
     try {
-      auto* p_block =
-          new detail::ptr_block<Y, D>(ptr_, std::forward<D>(deleter));
+      auto* p_block = new detail::ptr_block<Y, D>(ptr_, std::move(deleter));
       // get the Y* before its type gets erased
       ptr = p_block->get();
       cb = p_block;
@@ -177,9 +173,9 @@ public:
   }
 
   template <typename Y, typename D = std::default_delete<Y>,
-            typename = std::enable_if_t<std::is_convertible_v<Y, T>>>
-  void reset(Y* new_ptr, D&& deleter = D()) {
-    *this = std::move(shared_ptr<Y>(new_ptr, std::forward<D>(deleter)));
+            typename = std::enable_if_t<std::is_convertible_v<Y*, T*>>>
+  void reset(Y* new_ptr, D deleter = D()) {
+    *this = shared_ptr<Y>(new_ptr, std::move(deleter));
   }
 
   ~shared_ptr() {
@@ -282,6 +278,5 @@ private:
 template <typename T, typename... Args>
 shared_ptr<T> make_shared(Args&&... args) {
   auto* o_block = new detail::obj_block<T>(std::forward<Args>(args)...);
-  shared_ptr<T> result(o_block, o_block->get());
-  return result;
+  return shared_ptr<T>(o_block, o_block->get());
 }

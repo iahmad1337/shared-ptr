@@ -7,7 +7,7 @@ size_t control_block::get_strong() const {
 
 void control_block::inc_strong() {
   strong_cnt++;
-  weak_cnt++;
+  inc_weak();
 }
 
 void control_block::dec_strong() {
